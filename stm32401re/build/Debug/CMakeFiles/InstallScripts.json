@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/cmake_install.cmake",
+		"C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/cmake/stm32cubemx/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

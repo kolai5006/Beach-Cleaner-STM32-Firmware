@@ -1,0 +1,6 @@
+C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/CMakeFiles/stm32401re.dir
+C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/CMakeFiles/edit_cache.dir
+C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/CMakeFiles/rebuild_cache.dir
+C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir
+C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/cmake/stm32cubemx/CMakeFiles/edit_cache.dir
+C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/build/Debug/cmake/stm32cubemx/CMakeFiles/rebuild_cache.dir
