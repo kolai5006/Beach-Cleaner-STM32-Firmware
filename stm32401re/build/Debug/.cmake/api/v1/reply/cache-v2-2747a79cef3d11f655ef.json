@@ -1195,10 +1195,10 @@
 			[
 				{
 					"name" : "HELPSTRING",
-					"value" : "The CMake toolchain file"
+					"value" : "No help, variable specified on the command line."
 				}
 			],
-			"type" : "FILEPATH",
+			"type" : "UNINITIALIZED",
 			"value" : "C:/Users/nicho/Documents/project/senior design/CSULB-490-BeachCleaner/Beach-Cleaner-STM32-Firmware/stm32401re/cmake/gcc-arm-none-eabi.cmake"
 		},
 		{

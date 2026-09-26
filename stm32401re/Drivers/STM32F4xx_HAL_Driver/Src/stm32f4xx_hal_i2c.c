@@ -2659,7 +2659,7 @@ HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress,
     /* Prepare transfer parameters */
     hi2c->pBuffPtr    = pData;
     hi2c->XferCount   = Size;
-    hi2c->XferSize    = hi2c->XferCount;
+j    hi2c->XferSize    = hi2c->XferCount;
     hi2c->XferOptions = I2C_NO_OPTION_FRAME;
 
     /* Send Slave Address and Memory Address */
