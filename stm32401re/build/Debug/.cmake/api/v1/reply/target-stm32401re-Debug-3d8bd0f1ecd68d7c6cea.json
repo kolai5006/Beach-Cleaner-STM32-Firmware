@@ -36,13 +36,13 @@
 			{
 				"command" : 1,
 				"file" : 1,
-				"line" : 84,
+				"line" : 85,
 				"parent" : 2
 			},
 			{
 				"command" : 2,
 				"file" : 1,
-				"line" : 78,
+				"line" : 79,
 				"parent" : 2
 			}
 		]
@@ -110,7 +110,8 @@
 				2,
 				3,
 				4,
-				5
+				5,
+				6
 			]
 		},
 		{
@@ -161,7 +162,7 @@
 			"language" : "ASM",
 			"sourceIndexes" : 
 			[
-				6
+				7
 			]
 		}
 	],
@@ -211,21 +212,21 @@
 				2,
 				3,
 				4,
-				5
+				5,
+				6
 			]
 		},
 		{
 			"name" : "",
 			"sourceIndexes" : 
 			[
-				6
+				7
 			]
 		},
 		{
 			"name" : "Object Libraries",
 			"sourceIndexes" : 
 			[
-				7,
 				8,
 				9,
 				10,
@@ -241,7 +242,8 @@
 				20,
 				21,
 				22,
-				23
+				23,
+				24
 			]
 		}
 	],
@@ -257,6 +259,12 @@
 			"backtrace" : 4,
 			"compileGroupIndex" : 0,
 			"path" : "Core/Src/mcp9808.c",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 4,
+			"compileGroupIndex" : 0,
+			"path" : "Core/Src/bno055.c",
 			"sourceGroupIndex" : 0
 		},
 		{

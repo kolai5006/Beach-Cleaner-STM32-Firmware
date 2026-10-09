@@ -1,27 +1,31 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2026 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include "mcp9808.h"
+#include "bno055.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,6 +51,12 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 volatile int count = 0;
 MCP_9808 TempSensor;
+BNO055_Axis_Vec_t gyroData;
+
+// UART receive variables
+uint8_t rx_byte = 0;
+char rx_buffer[64];
+uint8_t rx_index = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -60,15 +70,18 @@ static void MX_I2C1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+// Retarget printf to huart2 (PC Virtual COM Port over ST-LINK USB)
+int _write(int file, char *ptr, int len) {
+  HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY);
+  return len;
+}
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
 
   /* USER CODE BEGIN 1 */
 
@@ -76,7 +89,8 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick.
+   */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -95,49 +109,99 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  uint8_t initStatus = MCP_9808_Init(&hi2c1);
 
-  if (initStatus != 0){
-      // Sensor initialization failed
-      Error_Handler();
-  }
+  //bno055 startup
+  BNO055_I2C_Mount(&hi2c1);
 
+  // if (bno055Status != BNO055_SUCCESS) {
+  //   // BNO055 initialization failed - warn on terminal instead of hard freezing
+  //   printf("[Warning] BNO055 sensor not detected (status=%d)\r\n", bno055Status);
+  // } else {
+  //   printf("[OK] BNO055 IMU Sensor Initialized!\r\n");
+  // }
+
+
+  // Print startup greeting over USART2 to PC Serial Monitor
+  // printf("\r\n========================================\r\n");
+  // printf("   STM32F401RE UART Echo Monitor Online!\r\n");
+  // printf("   Baud Rate: 115200 8N1\r\n");
+  // printf("========================================\r\n");
+
+  // uint8_t initStatus = MCP_9808_Init(&hi2c1);
+
+  // if (initStatus != 0) {
+  //   // Sensor initialization failed - warn on terminal instead of hard freezing
+  //   printf("[Warning] MCP9808 sensor not detected (status=%d)\r\n", initStatus);
+  // } else {
+  //   printf("[OK] MCP9808 Temperature Sensor Initialized!\r\n");
+  // }
+
+  // printf("Ready! Type characters in this terminal and press Enter:\r\n> ");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    MCP_9808_ReadTemp(&TempSensor);
-    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-    HAL_Delay(100);
+    //bno055 data read
+    BNO055_Get_Gyro(&gyroData); 
+
+    // //read temp test
+    //MCP_9808_ReadTemp(&TempSensor);
+
+    // //debug led test
+    // HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+    // HAL_Delay(100);
+
+    // // Non-blocking UART receive: check if a byte arrived within 10ms
+    // if (HAL_UART_Receive(&huart2, &rx_byte, 1, 10) == HAL_OK) {
+    //   // Echo typed character back to terminal so you see what you type
+    //   HAL_UART_Transmit(&huart2, &rx_byte, 1, 10);
+
+    //   // Check for Enter key (CR or LF)
+    //   if (rx_byte == '\r' || rx_byte == '\n') {
+    //     if (rx_index > 0) {
+    //       rx_buffer[rx_index] = '\0'; // Null-terminate string
+    //       printf("\r\n[STM32 Received]: \"%s\"\r\n> ", rx_buffer);
+    //       rx_index = 0; // Reset buffer index for next message
+
+    //       // Toggle green LED (LD2) to visually confirm message processed
+    //       HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+    //     }
+    //   } else if (rx_index < sizeof(rx_buffer) - 1) {
+    //     rx_buffer[rx_index++] = (char)rx_byte;
+    //   }
+    // }
+
+
+
+
+
+    // live watch test
     count += 1;
-
   }
   /* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+   * in the RCC_OscInitTypeDef structure.
+   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -147,33 +211,30 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 336;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
   RCC_OscInitStruct.PLL.PLLQ = 7;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
     Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
+                                RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
     Error_Handler();
   }
 }
 
 /**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C1_Init(void)
-{
+ * @brief I2C1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_I2C1_Init(void) {
 
   /* USER CODE BEGIN I2C1_Init 0 */
 
@@ -191,23 +252,20 @@ static void MX_I2C1_Init(void)
   hi2c1.Init.OwnAddress2 = 0;
   hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
   hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK) {
     Error_Handler();
   }
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
-
 }
 
 /**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART2_UART_Init(void)
-{
+ * @brief USART2 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_USART2_UART_Init(void) {
 
   /* USER CODE BEGIN USART2_Init 0 */
 
@@ -224,23 +282,20 @@ static void MX_USART2_UART_Init(void)
   huart2.Init.Mode = UART_MODE_TX_RX;
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
-  {
+  if (HAL_UART_Init(&huart2) != HAL_OK) {
     Error_Handler();
   }
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
-
 }
 
 /**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_GPIO_Init(void) {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
@@ -278,32 +333,30 @@ static void MX_GPIO_Init(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
-  while (1)
-  {
+  while (1) {
   }
   /* USER CODE END Error_Handler_Debug */
 }
 #ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
-{
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
+void assert_failed(uint8_t *file, uint32_t line) {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* User can add his own implementation to report the file name and line
+     number, ex: printf("Wrong parameters value: file %s on line %d\r\n", file,
+     line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
