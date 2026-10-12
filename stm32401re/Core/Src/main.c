@@ -162,7 +162,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
     //motor test start
-    drive_motor(&motor1, 1); // Drive motor1 forward at 50% power
+    drive_motor(&motor1, 0); // Drive motor1 forward at full power
     //__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 3500); // Set PWM duty cycle to 50%
 
     //bno055 data read

@@ -6,9 +6,6 @@
  */
 #include "motordrivers.h"
 
-#define MOTOR_SCALE_MAX_FWD 1
-#define MOTOR_SCALE_MAX_BACK -1
-
 /**
  * Initialize the parameters of a motor struct to default
  * values.
@@ -40,42 +37,31 @@ void init_default_motor(Motor *RW,
     RW->Motor_t = RW_pwm;
     RW->DirPort = Dir_port;
     RW->DirPin = Dir_pin;
-    RW->max_fwd = MOTOR_SCALE_MAX_FWD;
-    RW->max_back = MOTOR_SCALE_MAX_BACK;
-
-
     __HAL_TIM_SET_COMPARE(
         RW_pwm.timer,
         RW_pwm.channel,
-        RW_pwm.period);
+        RW_pwm.period + 1U);
     HAL_TIM_PWM_Start(pwm_tim, pwm_channel);
 
 }
 
 void drive_motor(Motor *RW, float power)
 {
+    PWM_Driver RW_pwm = RW->Motor_t;
+    uint32_t compare;
 
-    PWM_Driver RW_pwm;
-    RW_pwm = RW->Motor_t;
-
-    if (power > 0)
-    {
-        HAL_GPIO_WritePin(RW->DirPort, RW->DirPin,RESET);
-        power = (power > RW->max_fwd) ? RW->max_fwd : power;
-    }
+    if (power <= 0.0f)
+        compare = RW_pwm.period + 1U;
+    else if (power >= 100.0f)
+        compare = 0U;
     else
-    {
-        HAL_GPIO_WritePin(RW->DirPort, RW->DirPin,SET);
-        power = (power < RW->max_back) ? -RW->max_back : -power;
-    }
+        compare = (uint32_t)((RW_pwm.period + 1U) * (1.0f - power * 0.01f));
 
-    /*
-     * Set timer for turning in desired direction.
-     */
+    HAL_GPIO_WritePin(RW->DirPort, RW->DirPin, RESET);
     __HAL_TIM_SET_COMPARE(
         RW_pwm.timer,
         RW_pwm.channel,
-        (uint32_t)(RW_pwm.period - (RW_pwm.period * power))
+        compare
     );
 }
 

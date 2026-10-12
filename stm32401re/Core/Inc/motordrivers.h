@@ -12,11 +12,6 @@
 
 #include "stm32f4xx_hal.h"
 
-/*
- * Default motor scale limits.
- */
-
-
 /**
  * Represents a timer PWM driver.
  */
@@ -55,16 +50,6 @@ typedef struct
 
 
     uint16_t DirPin;
-
-    /**
-     * The maximum forward driving power scale.
-     */
-    float max_fwd;
-
-    /**
-     * The maximum reverse driving power scale.
-     */
-    float max_back;
 } Motor;
 
 //rw - reactionwheel
@@ -78,7 +63,7 @@ void init_default_motor(Motor *RW,
  * Drive the PWM of the motor.
  *
  * @param[in] motor a pointer to the motor object to drive.
- * @param[in] power the duty cycle and direction to drive.
+ * @param[in] power motor power from 0 (off) to 100 (full power).
  *
  */
 void drive_motor(Motor *RW, float power);
