@@ -1,9 +1,10 @@
 /*
  * motordrivers.h
  *
- *  Created on: Sep 12, 2025
- *      Author: nicho, adam :p
+ *  Created on: oct 12, 2025
+ *      Author: nicholai
  */
+
 /**
  * Motor driving abstractions.
  */
@@ -52,6 +53,22 @@ typedef struct
     uint16_t DirPin;
 } Motor;
 
+typedef struct {
+    uint16_t previousCapture;
+    uint8_t havePreviousCapture;
+
+    volatile uint16_t periodTicks;
+    volatile uint8_t havePeriod;
+    volatile uint32_t lastEdgeMs;  // Must be 32-bit for HAL_GetTick()
+} Encoder_Reading;
+
+typedef struct {
+    TIM_HandleTypeDef *encoder_tim;
+    uint32_t encoder_channel;
+    Encoder_Reading reading;
+} Encoder_Driver;
+
+
 //rw - reactionwheel
 void init_default_motor(Motor *RW,
                         TIM_HandleTypeDef *pwm_tim,
@@ -67,3 +84,10 @@ void init_default_motor(Motor *RW,
  *
  */
 void drive_motor(Motor *RW, float power);
+
+HAL_StatusTypeDef init_encoder(
+    Encoder_Driver *encoder,
+    TIM_HandleTypeDef *encoder_tim,
+    uint32_t encoder_channel);
+
+float FIT0441_ENCODER_Get_RPM(const Encoder_Reading *reading);

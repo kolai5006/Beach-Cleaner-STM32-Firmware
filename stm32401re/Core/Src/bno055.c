@@ -28,7 +28,10 @@ static inline HAL_StatusTypeDef BNO055_Read(uint8_t reg, uint8_t* buf, uint8_t l
 	HAL_StatusTypeDef error;
 
 	error = HAL_I2C_Master_Transmit(BNO055_I2C, BNO055_I2C_ADDR<<1, &reg, 1, BNO055_WRITE_TIMEOUT);
-	error |= HAL_I2C_Master_Receive(BNO055_I2C, BNO055_I2C_ADDR<<1, buf, len, BNO055_READ_TIMEOUT);
+	if(error != HAL_OK){
+		return error;
+	}
+	error = HAL_I2C_Master_Receive(BNO055_I2C, BNO055_I2C_ADDR<<1, buf, len, BNO055_READ_TIMEOUT);
 
 	return error;
 
@@ -288,13 +291,33 @@ BNO055_ERROR BNO055_Get_Gyro(BNO055_Axis_Vec_t* vec){
 
 	HAL_StatusTypeDef error;
 	uint8_t tempBuf[6];
+	if(vec == NULL || BNO055_I2C == NULL){
+		return BNO055_NOT_DETECTED;
+	}
 
-	/* Makes sure BNO055 is in NDOF mode and Page 0 */
-	BNO055_STATUS_CHECK_AND_SET(&state, NDOF, BNO055_PAGE_0);
+	/* Keep a failed gyro transaction from stopping the motor-monitoring loop. */
+	if(state.currentMode != NDOF){
+		error = BNO055_Write(BNO055_OPR_MODE, OPR_MODE_NDOF);
+		if(error != HAL_OK){
+			return BNO055_NOT_DETECTED;
+		}
+		state.currentMode = NDOF;
+		HAL_Delay(20);
+	}
+	if(state.currentPage != BNO055_PAGE_0){
+		error = BNO055_Write(BNO055_PAGE_ID, BNO055_PAGE_0);
+		if(error != HAL_OK){
+			return BNO055_NOT_DETECTED;
+		}
+		state.currentPage = BNO055_PAGE_0;
+		HAL_Delay(20);
+	}
 
 	/* Grab Gyro LSB and MSB data of all axes */
 	error = BNO055_Read(BNO055_GYR_DATA_X_LSB, tempBuf, 6);
-	BNO055_ERROR_HANDLE(error);
+	if(error != HAL_OK){
+		return BNO055_NOT_DETECTED;
+	}
 
 	/* Parse Data into Vector Struct */
 	vec->x = (int16_t)((tempBuf[1]<<8) | tempBuf[0]) / BNO055_GYRO_DPS_SCALE;
