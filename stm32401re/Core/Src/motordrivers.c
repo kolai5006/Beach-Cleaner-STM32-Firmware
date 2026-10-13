@@ -52,7 +52,7 @@ void init_default_motor(Motor *RW,
 
 }
 
-void drive_motor(Motor *RW, float power)
+void drive_motor(Motor *RW, float power, uint8_t direction)
 {
     PWM_Driver RW_pwm = RW->Motor_t;
     uint32_t compare;
@@ -64,7 +64,8 @@ void drive_motor(Motor *RW, float power)
     else
         compare = (uint32_t)((RW_pwm.period + 1U) * (1.0f - power * 0.01f));
 
-    HAL_GPIO_WritePin(RW->DirPort, RW->DirPin, RESET);
+    HAL_GPIO_WritePin(RW->DirPort, RW->DirPin,
+                    direction ? GPIO_PIN_SET : GPIO_PIN_RESET);
     __HAL_TIM_SET_COMPARE(
         RW_pwm.timer,
         RW_pwm.channel,

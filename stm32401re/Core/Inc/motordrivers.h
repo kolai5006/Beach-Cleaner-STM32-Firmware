@@ -83,7 +83,7 @@ void init_default_motor(Motor *RW,
  * @param[in] power motor power from 0 (off) to 100 (full power).
  *
  */
-void drive_motor(Motor *RW, float power);
+void drive_motor(Motor *RW, float power, uint8_t direction);
 
 HAL_StatusTypeDef init_encoder(
     Encoder_Driver *encoder,
