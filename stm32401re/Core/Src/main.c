@@ -144,7 +144,8 @@ int main(void)
 
   //motor initialization
   //no direction pin for now
-  init_default_motor(&motor1, &htim2, TIM_CHANNEL_2, GPIOB, GPIO_PIN_10);
+  //pins: PA0 (pwm), PB6 (dir) 
+  init_default_motor(&motor1, &htim2, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
   init_encoder(&encoder1, &htim4, TIM_CHANNEL_1);
   
   // HC-SR04 trigger: PB5; echo: PA8 / TIM1_CH1.
@@ -187,17 +188,17 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
     //motor test start
-    // drive_motor(&motor1, 50, 0); // Drive motor1 forward at full power
-    // rpm1 = FIT0441_ENCODER_Get_RPM(&encoder1.reading);
+    drive_motor(&motor1, 50, 0); // Drive motor1 forward at full power
+    rpm1 = FIT0441_ENCODER_Get_RPM(&encoder1.reading);
 
     //bno055 data read
     // BNO055_Get_Gyro(&gyroData);
 
     //hcsr04 read test
-    float distance_cm = -1.0f;
-    ultrasonic_status = HCSR04_ReadDistance(&ultrasonicSensor1, &distance_cm);
-    ultrasonic_distance_cm = distance_cm;
-    HAL_Delay(60U);
+    // float distance_cm = -1.0f;
+    // ultrasonic_status = HCSR04_ReadDistance(&ultrasonicSensor1, &distance_cm);
+    // ultrasonic_distance_cm = distance_cm;
+    // HAL_Delay(60U);
 
     // //read temp test
     //MCP_9808_ReadTemp(&TempSensor);
