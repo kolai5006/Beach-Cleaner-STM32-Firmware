@@ -1,58 +1,52 @@
-# Prerequisites
-*.d
+# ------------------------------------------------------------------
+# STM32 firmware .gitignore
+#
+# TRACKED (on purpose):
+#   Core/Src, Core/Inc        -> our .c / .h code
+#   Drivers/                  -> CubeMX-generated HAL + CMSIS (needed to build)
+#   cmake/, CMakeLists.txt, CMakePresets.json
+#   stm32401re.ioc, .mxproject, .project   -> CubeMX project
+#   startup_*.s, *.ld         -> startup code + linker script
+#   .vscode/ launch/settings/c_cpp_properties, .settings/, .clangd
+#
+# IGNORED: everything that the build or the editor regenerates.
+# ------------------------------------------------------------------
 
-# Object files
+# CMake / Ninja build output (regenerate with: cmake --preset Debug)
+build/
+out/
+CMakeUserPresets.json
+
+# STM32CubeIDE build folders
+Debug/
+Release/
+
+# Compiler / linker output
 *.o
-*.ko
 *.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
+*.d
 *.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# Cortex-Debug
-.vscode/ipch/*
-.vscode/.cortex-debug.*
+*.cyclo
+*.elf
+*.map
+*.list
 *.lst
+*.hex
 *.bin
+*.srec
+*.a
+
+# clangd / editor caches
+.cache/
+.vscode/ipch/
+.vscode/.cortex-debug.*
+.vscode/browse.vc.db*
+
+# OS / tool junk
+Microsoft/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+*~

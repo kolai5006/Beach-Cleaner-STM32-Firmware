@@ -35,7 +35,9 @@ enable_language(C ASM)
 add_executable(${CMAKE_PROJECT_NAME}
     Core/Src/motordrivers.c
     Core/Src/bno055.c
-    Core/Src/hcsr04.c)
+    Core/Src/hcsr04.c
+    Core/Src/mcp9808.c
+    Core/Src/testing.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

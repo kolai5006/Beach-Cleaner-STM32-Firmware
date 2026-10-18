@@ -24,11 +24,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "mcp9808.h"
-#include "bno055.h"
-#include "motordrivers.h"
-#include "hcsr04.h"
-#include "stm32f4xx_hal_tim.h"
+#include "testing.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,26 +53,7 @@ TIM_HandleTypeDef htim4;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-volatile int count = 0;
-MCP_9808 TempSensor;
-BNO055_Axis_Vec_t gyroData;
-
-//motor variables
-static Motor motor1;
-static Motor motor2;
-static Encoder_Driver encoder1;
-static Encoder_Driver encoder2;
-volatile float rpm1 = 0.0f;
-
-//hcsr04 variables
-static HCSR04 ultrasonicSensor1;
-volatile float ultrasonic_distance_cm = -1.0f;
-volatile HAL_StatusTypeDef ultrasonic_status = HAL_ERROR;
-
-// UART receive variables
-uint8_t rx_byte = 0;
-char rx_buffer[64];
-uint8_t rx_index = 0;
+volatile int count = 0;  // live watch: increments every loop, proves code is running
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -138,46 +115,13 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-
-  //bno055 startup
-  BNO055_I2C_Mount(&hi2c1);
-
-  //motor initialization
-  //no direction pin for now
-  //pins: PA0 (pwm), PB6 (dir) 
-  init_default_motor(&motor1, &htim2, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
-  init_encoder(&encoder1, &htim4, TIM_CHANNEL_1);
-  
-  // HC-SR04 trigger: PB5; echo: PA8 / TIM1_CH1.
-  if (HCSR04_Init(&ultrasonicSensor1, GPIOB, GPIO_PIN_5,
-                  GPIOA, GPIO_PIN_8, &htim1) != HAL_OK) {
-    Error_Handler();
-  }
-
-  // if (bno055Status != BNO055_SUCCESS) {
-  //   // BNO055 initialization failed - warn on terminal instead of hard freezing
-  //   printf("[Warning] BNO055 sensor not detected (status=%d)\r\n", bno055Status);
-  // } else {
-  //   printf("[OK] BNO055 IMU Sensor Initialized!\r\n");
-  // }
-
-
-  // Print startup greeting over USART2 to PC Serial Monitor
-  // printf("\r\n========================================\r\n");
-  // printf("   STM32F401RE UART Echo Monitor Online!\r\n");
-  // printf("   Baud Rate: 115200 8N1\r\n");
-  // printf("========================================\r\n");
-
-  // uint8_t initStatus = MCP_9808_Init(&hi2c1);
-
-  // if (initStatus != 0) {
-  //   // Sensor initialization failed - warn on terminal instead of hard freezing
-  //   printf("[Warning] MCP9808 sensor not detected (status=%d)\r\n", initStatus);
-  // } else {
-  //   printf("[OK] MCP9808 Temperature Sensor Initialized!\r\n");
-  // }
-
-  // printf("Ready! Type characters in this terminal and press Enter:\r\n> ");
+  // Tests live in testing.c (pins + what to watch are documented there).
+  // Enable a test by uncommenting its _Init() here AND its _Run() below.
+  Test_Motor_Init();
+  // Test_Ultrasonic_Init();
+  // Test_TempSensor_Init();
+  // Test_IMU_Init();
+  // Test_UartEcho_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -186,52 +130,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    Test_Motor_Run();
+    // Test_Ultrasonic_Run();
+    // Test_TempSensor_Run();
+    // Test_IMU_Run();
+    // Test_UartEcho_Run();
 
-    //motor test start
-    drive_motor(&motor1, 50, 0); // Drive motor1 forward at full power
-    rpm1 = FIT0441_ENCODER_Get_RPM(&encoder1.reading);
-
-    //bno055 data read
-    // BNO055_Get_Gyro(&gyroData);
-
-    //hcsr04 read test
-    // float distance_cm = -1.0f;
-    // ultrasonic_status = HCSR04_ReadDistance(&ultrasonicSensor1, &distance_cm);
-    // ultrasonic_distance_cm = distance_cm;
-    // HAL_Delay(60U);
-
-    // //read temp test
-    //MCP_9808_ReadTemp(&TempSensor);
-
-    // //debug led test
-    // HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    // HAL_Delay(100);
-
-    // // Non-blocking UART receive: check if a byte arrived within 10ms
-    // if (HAL_UART_Receive(&huart2, &rx_byte, 1, 10) == HAL_OK) {
-    //   // Echo typed character back to terminal so you see what you type
-    //   HAL_UART_Transmit(&huart2, &rx_byte, 1, 10);
-
-    //   // Check for Enter key (CR or LF)
-    //   if (rx_byte == '\r' || rx_byte == '\n') {
-    //     if (rx_index > 0) {
-    //       rx_buffer[rx_index] = '\0'; // Null-terminate string
-    //       printf("\r\n[STM32 Received]: \"%s\"\r\n> ", rx_buffer);
-    //       rx_index = 0; // Reset buffer index for next message
-
-    //       // Toggle green LED (LD2) to visually confirm message processed
-    //       HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    //     }
-    //   } else if (rx_index < sizeof(rx_buffer) - 1) {
-    //     rx_buffer[rx_index++] = (char)rx_byte;
-    //   }
-    // }
-
-
-
-
-
-    // live watch test
     count += 1;
   }
   /* USER CODE END 3 */
