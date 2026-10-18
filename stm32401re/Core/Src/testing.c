@@ -19,6 +19,7 @@
  *  Test_TempSensor   SCL / SDA       PB8 / PB9   I2C1 (addr 0x18)
  *  Test_IMU          SCL / SDA       PB8 / PB9   I2C1 (shared bus)
  *  Test_UartEcho     TX / RX         PA2 / PA3   USART2 -> ST-LINK USB
+ *  Test_LED          Toggle          PA5    GPIO output
  *  ---------------------------------------------------------------
  *  Spare, configured but unused: PB4 (TIM3_CH1 capture, 2nd encoder),
  *  PA4 / PA5 (GPIO out), PA1 (GPIO in).
@@ -205,4 +206,24 @@ void Test_UartEcho_Run(void)
     } else if (rx_index < sizeof(rx_buffer) - 1) {
         rx_buffer[rx_index++] = (char)rx_byte;
     }
+}
+
+
+/* =====================================================================
+ * LED BLINK TEST
+ *
+ *  Pin:  PA5 -> LED (LD2, on-board)
+ *
+ *  The LED will blink at a regular interval.
+ * ===================================================================== */
+void Test_LED_Init(void)
+{
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+}
+
+void Test_LED_Run(void)
+{
+    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+    HAL_Delay(500);
 }

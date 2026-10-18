@@ -51,3 +51,7 @@ void Test_IMU_Run(void);
 /* ---- UART echo over ST-LINK virtual COM port ---- */
 void Test_UartEcho_Init(void);
 void Test_UartEcho_Run(void);
+
+/* ---- On-board LED blink (LD2) ---- */
+void Test_LED_Init(void);
+void Test_LED_Run(void);

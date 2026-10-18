@@ -117,11 +117,12 @@ int main(void)
   /* USER CODE BEGIN 2 */
   // Tests live in testing.c (pins + what to watch are documented there).
   // Enable a test by uncommenting its _Init() here AND its _Run() below.
-  Test_Motor_Init();
+  //Test_Motor_Init();
   // Test_Ultrasonic_Init();
   // Test_TempSensor_Init();
   // Test_IMU_Init();
   // Test_UartEcho_Init();
+  Test_LED_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -130,12 +131,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    Test_Motor_Run();
+    // Test_Motor_Run();
     // Test_Ultrasonic_Run();
     // Test_TempSensor_Run();
     // Test_IMU_Run();
     // Test_UartEcho_Run();
-
+    Test_LED_Run();
     count += 1;
   }
   /* USER CODE END 3 */
