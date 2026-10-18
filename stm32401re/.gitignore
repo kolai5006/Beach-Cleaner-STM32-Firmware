@@ -1,0 +1,52 @@
+# ------------------------------------------------------------------
+# STM32 firmware .gitignore
+#
+# TRACKED (on purpose):
+#   Core/Src, Core/Inc        -> our .c / .h code
+#   Drivers/                  -> CubeMX-generated HAL + CMSIS (needed to build)
+#   cmake/, CMakeLists.txt, CMakePresets.json
+#   stm32401re.ioc, .mxproject, .project   -> CubeMX project
+#   startup_*.s, *.ld         -> startup code + linker script
+#   .vscode/ launch/settings/c_cpp_properties, .settings/, .clangd
+#
+# IGNORED: everything that the build or the editor regenerates.
+# ------------------------------------------------------------------
+
+# CMake / Ninja build output (regenerate with: cmake --preset Debug)
+build/
+out/
+CMakeUserPresets.json
+
+# STM32CubeIDE build folders
+Debug/
+Release/
+
+# Compiler / linker output
+*.o
+*.obj
+*.d
+*.su
+*.cyclo
+*.elf
+*.map
+*.list
+*.lst
+*.hex
+*.bin
+*.srec
+*.a
+
+# clangd / editor caches
+.cache/
+.vscode/ipch/
+.vscode/.cortex-debug.*
+.vscode/browse.vc.db*
+
+# OS / tool junk
+Microsoft/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+*~
