@@ -140,7 +140,7 @@ int main(void)
     // Test_UartEcho_Run();
     // Test_LED_Run();
     // Test_ESP32_Run();
-    Test_Drivetrain_Wheels_Run();
+    Test_Drivetrain_Run();
     count += 1;
   }
   /* USER CODE END 3 */
