@@ -20,6 +20,8 @@
  *  Test_IMU          SCL / SDA       PB8 / PB9   I2C1 (shared bus)
  *  Test_UartEcho     TX / RX         PA2 / PA3   USART2 -> ST-LINK USB
  *  Test_LED          Toggle          PA5    GPIO output
+ *  Test_ESP32        TX / RX         PA9 / PA10  USART1 -> ESP32 (D8 / D2)
+ *  Test_ESP32_Motor  ESP32 + motor   Test_ESP32 pins + Test_Motor pins
  *  ---------------------------------------------------------------
  *  Spare, configured but unused: PB4 (TIM3_CH1 capture, 2nd encoder),
  *  PA4 / PA5 (GPIO out), PA1 (GPIO in).
@@ -31,6 +33,7 @@
 #include "main.h"           // Error_Handler()
 #include "motordrivers.h"
 #include "hcsr04.h"
+#include "esp32comm.h"
 
 /* Peripheral handles created by CubeMX in main.c */
 extern I2C_HandleTypeDef hi2c1;
@@ -226,4 +229,189 @@ void Test_LED_Run(void)
 {
     HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
     HAL_Delay(500);
+}
+
+/* Below this line are tests, that implement multiple functionalities/sensors */
+
+/* =====================================================================
+ * ESP32 -> STM32 COMMUNICATION TEST
+ *
+ *  Wiring (both boards are 3.3 V logic):
+ *      ESP32 GPIO25 (TX)  ->  PA10 (USART1_RX, Arduino D2)
+ *      ESP32 GPIO26 (RX)  <-  PA9  (USART1_TX, Arduino D8)
+ *      ESP32 GND          --  STM32 GND   (must share ground)
+ *
+ *  USART1 (115200 8N1, interrupt on) talks to the ESP32.
+ *  USART2 stays on the ST-LINK USB, so printf shows up on the PC.
+ *
+ *  Packet format + receive logic live in esp32comm.c (see esp32comm.h).
+ *  ESP32 sketch: uart_commtest/uartcomm/uartcomm.ino
+ *
+ *  The ESP32 sends PING packets (AA 55 01 01 <seq> <crc>) at 20 Hz.
+ *  Every good ping is echoed back, so the ESP32's "echoed back" count
+ *  should read 120 bytes/s (6 bytes x 20 packets).
+ *
+ *  Open a serial monitor on the ST-LINK COM port at 115200. Each packet
+ *  prints one line, e.g.
+ *      [ESP32] seq= 42  crc OK  | good=43 bad_crc=0 lost=0 junk=0
+ *  Watch: test_esp32_good, test_esp32_bad_crc, test_esp32_lost
+ * ===================================================================== */
+extern UART_HandleTypeDef huart1;
+
+volatile uint32_t test_esp32_good = 0;
+volatile uint32_t test_esp32_bad_crc = 0;
+volatile uint32_t test_esp32_lost = 0;
+
+void Test_ESP32_Init(void)
+{
+    printf("\r\n========================================\r\n");
+    printf("   ESP32 -> STM32 UART ping test (USART1)\r\n");
+    printf("   ESP32 TX(25) -> PA10, ESP32 RX(26) <- PA9\r\n");
+    printf("========================================\r\n");
+    printf("Waiting for packets...\r\n");
+
+    if (ESP32_Comm_Init(&huart1) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+void Test_ESP32_Run(void)
+{
+    static uint8_t last_seq = 0;
+    static uint8_t have_last_seq = 0;
+    ESP32_Packet pkt;
+
+    while (ESP32_Comm_GetPacket(&pkt)) {
+        if (pkt.type != ESP32_TYPE_PING || pkt.len != 1U) {
+            continue;  // not a ping, ignore
+        }
+
+        uint8_t seq = pkt.payload[0];
+
+        if (pkt.crc_ok) {
+            // Count skipped sequence numbers (uint8_t math handles 255 -> 0)
+            if (have_last_seq) {
+                test_esp32_lost += (uint8_t)(seq - last_seq - 1U);
+            }
+            last_seq = seq;
+            have_last_seq = 1;
+
+            ESP32_Comm_SendPacket(ESP32_TYPE_PING, &seq, 1);  // echo back
+        }
+
+        const ESP32_Stats *stats = ESP32_Comm_GetStats();
+        test_esp32_good = stats->good;
+        test_esp32_bad_crc = stats->bad_crc;
+
+        printf("[ESP32] seq=%3u  crc %s | good=%lu bad_crc=%lu lost=%lu junk=%lu\r\n",
+               seq, pkt.crc_ok ? "OK " : "BAD",
+               stats->good, stats->bad_crc, test_esp32_lost, stats->junk);
+    }
+}
+
+
+/* =====================================================================
+ * ESP32 -> STM32 MOTOR SPEED TEST
+ *
+ *  Type a speed into the ESP32's serial monitor and the motor follows it.
+ *  ESP32 sketch: uart_commtest/motorcmd/motorcmd.ino
+ *
+ *  Pins:  same ESP32 wiring as the ping test (USART1, PA9 / PA10)
+ *         PA0  -> motor PWM   (TIM2_CH1)
+ *         PB10 -> motor direction
+ *         PB6  <- encoder FG  (TIM4_CH1)
+ *
+ *  The ESP32 resends the last speed as a MOTOR packet 10 times a second:
+ *      AA 55 02 01 <speed> <crc>     speed: int8, -100..100
+ *  Positive = direction 0, negative = direction 1, 0 = stop.
+ *
+ *  FAILSAFE: if no good MOTOR packet arrives for ESP32_MOTOR_TIMEOUT_MS,
+ *  the motor stops until packets come back. Test it by typing "x" in the
+ *  ESP32 monitor (stops sending) or unplugging the ESP32 TX wire.
+ *
+ *  Serial monitor (ST-LINK, 115200) prints when the speed changes, when
+ *  the failsafe trips, and a status line once a second.
+ *  Watch: test_esp32_motor_speed, test_motor_rpm, test_esp32_failsafe
+ *
+ *  Don't run this together with Test_Motor (they share the motor).
+ * ===================================================================== */
+#define ESP32_MOTOR_TIMEOUT_MS  500U
+#define ESP32_MOTOR_STATUS_MS   1000U
+
+volatile int8_t test_esp32_motor_speed = 0;
+volatile uint8_t test_esp32_failsafe = 1;  // 1 = stopped, no fresh commands
+
+void Test_ESP32_Motor_Init(void)
+{
+    init_default_motor(&test_motor, &htim2, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
+    init_encoder(&test_encoder, &htim4, TIM_CHANNEL_1);
+    drive_motor(&test_motor, 0.0f, 0U);
+
+    printf("\r\n========================================\r\n");
+    printf("   ESP32 -> STM32 motor speed test\r\n");
+    printf("   Type -100..100 in the ESP32 serial monitor\r\n");
+    printf("   Failsafe: motor stops after %u ms of silence\r\n",
+           (unsigned)ESP32_MOTOR_TIMEOUT_MS);
+    printf("========================================\r\n");
+    printf("Waiting for motor commands...\r\n");
+
+    if (ESP32_Comm_Init(&huart1) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+void Test_ESP32_Motor_Run(void)
+{
+    static uint32_t last_cmd_ms = 0;
+    static uint32_t last_status_ms = 0;
+    ESP32_Packet pkt;
+
+    // 1. Take in every packet that arrived and keep the newest speed
+    while (ESP32_Comm_GetPacket(&pkt)) {
+        if (!pkt.crc_ok || pkt.type != ESP32_TYPE_MOTOR || pkt.len != 1U) {
+            continue;
+        }
+
+        int8_t speed = (int8_t)pkt.payload[0];
+        if (speed > 100) {
+            speed = 100;
+        } else if (speed < -100) {
+            speed = -100;
+        }
+
+        if (test_esp32_failsafe) {
+            printf("[MOTOR] commands received, failsafe cleared\r\n");
+            test_esp32_failsafe = 0;
+        }
+        if (speed != test_esp32_motor_speed) {
+            printf("[MOTOR] new speed %d%%\r\n", speed);
+        }
+
+        test_esp32_motor_speed = speed;
+        last_cmd_ms = HAL_GetTick();
+    }
+
+    // 2. Failsafe: stop if the commands went quiet
+    if (!test_esp32_failsafe && (HAL_GetTick() - last_cmd_ms) > ESP32_MOTOR_TIMEOUT_MS) {
+        test_esp32_failsafe = 1;
+        printf("[FAILSAFE] no command for %u ms, motor stopped\r\n",
+               (unsigned)ESP32_MOTOR_TIMEOUT_MS);
+    }
+
+    // 3. Act on the stored speed
+    int8_t speed = test_esp32_failsafe ? 0 : test_esp32_motor_speed;
+    float power = (speed < 0) ? (float)(-speed) : (float)speed;
+    drive_motor(&test_motor, power, (speed < 0) ? 1U : 0U);
+    test_motor_rpm = FIT0441_ENCODER_Get_RPM(&test_encoder.reading);
+
+    // 4. Status line once a second
+    if ((HAL_GetTick() - last_status_ms) >= ESP32_MOTOR_STATUS_MS) {
+        last_status_ms = HAL_GetTick();
+        const ESP32_Stats *stats = ESP32_Comm_GetStats();
+        // nano printf has no %f, so print rpm as a whole number
+        printf("[STATUS] speed=%4d%%  rpm=%4d  %s | good=%lu bad_crc=%lu junk=%lu\r\n",
+               speed, (int)test_motor_rpm,
+               test_esp32_failsafe ? "FAILSAFE" : "running ",
+               stats->good, stats->bad_crc, stats->junk);
+    }
 }

@@ -31,6 +31,11 @@ extern MCP_9808 test_temp_sensor;                   // Test_TempSensor
 extern volatile uint8_t test_temp_status;
 extern BNO055_Axis_Vec_t test_gyro_data;            // Test_IMU
 extern volatile BNO055_ERROR test_imu_status;
+extern volatile uint32_t test_esp32_good;           // Test_ESP32
+extern volatile uint32_t test_esp32_bad_crc;
+extern volatile uint32_t test_esp32_lost;
+extern volatile int8_t test_esp32_motor_speed;      // Test_ESP32_Motor
+extern volatile uint8_t test_esp32_failsafe;
 
 /* ---- Motor + encoder (FIT0441) ---- */
 void Test_Motor_Init(void);
@@ -55,3 +60,11 @@ void Test_UartEcho_Run(void);
 /* ---- On-board LED blink (LD2) ---- */
 void Test_LED_Init(void);
 void Test_LED_Run(void);
+
+/* ---- ESP32 to STM32 Communication ---- */
+void Test_ESP32_Init(void);
+void Test_ESP32_Run(void);
+
+/* ---- ESP32 -> STM32 motor speed (typed in ESP32 serial monitor) ---- */
+void Test_ESP32_Motor_Init(void);
+void Test_ESP32_Motor_Run(void);

@@ -37,6 +37,7 @@ add_executable(${CMAKE_PROJECT_NAME}
     Core/Src/bno055.c
     Core/Src/hcsr04.c
     Core/Src/mcp9808.c
+    Core/Src/esp32comm.c
     Core/Src/testing.c)
 
 # Add STM32CubeMX generated sources
