@@ -415,3 +415,49 @@ void Test_ESP32_Motor_Run(void)
                stats->good, stats->bad_crc, stats->junk);
     }
 }
+
+
+/* =====================================================================
+ * ULTRASONIC SENSOR + MOTOR TEST
+ *
+ *  Pins:  PB5 -> TRIG
+ *         PA8 <- ECHO  (through a voltage divider, 5 V -> 3.3 V)
+ *         PA0  -> motor PWM   (TIM2_CH1)
+ *         PB10 -> motor direction
+ *         PB6  <- encoder FG  (TIM4_CH1)
+ *
+ *  The Ultrasonic sensor pings every 60 ms. If the distance is less than
+ *  20 cm, the motor stops. Otherwise, the motor runs at 75% power in direction 0.
+    *  Watch: test_ultrasonic_distance_cm, test_motor_rpm
+ * ===================================================================== */
+
+void Test_Ultrasonic_Motor_Init(void)
+{
+    init_default_motor(&test_motor, &htim2, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
+    init_encoder(&test_encoder, &htim4, TIM_CHANNEL_1);
+    drive_motor(&test_motor, 0.0f, 0U);
+
+    if (HCSR04_Init(&test_ultrasonic, GPIOB, GPIO_PIN_5,
+                    GPIOA, GPIO_PIN_8, &htim1) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+void Test_Ultrasonic_Motor_Run(void)
+{
+    // 1. Read the ultrasonic sensor
+    float distance_cm = -1.0f;
+    test_ultrasonic_status = HCSR04_ReadDistance(&test_ultrasonic, &distance_cm);
+    test_ultrasonic_distance_cm = distance_cm;
+    
+    // 2. Drive the motor based on the distance
+    if (distance_cm >= 0.0f && distance_cm < 20.0f) {
+        // Object detected within 20 cm, stop the motor
+        drive_motor(&test_motor, 0.0f, 0U);
+    } else {
+        // No object detected or distance is greater than 20 cm, run the motor at 75% power in direction 0
+        drive_motor(&test_motor, 75.0f, 0U);
+    }   
+
+    HAL_Delay(60U);
+}

@@ -127,7 +127,8 @@ int main(void)
   // Test_UartEcho_Init();
   // Test_LED_Init();
   // Test_ESP32_Init();
-  Test_ESP32_Motor_Init();
+  // Test_ESP32_Motor_Init();
+  Test_Ultrasonic_Motor_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,7 +144,8 @@ int main(void)
     // Test_UartEcho_Run();
     // Test_LED_Run();
     // Test_ESP32_Run();
-    Test_ESP32_Motor_Run();
+    // Test_ESP32_Motor_Run();
+    Test_Ultrasonic_Motor_Run();
     count += 1;
   }
   /* USER CODE END 3 */

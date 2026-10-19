@@ -68,3 +68,7 @@ void Test_ESP32_Run(void);
 /* ---- ESP32 -> STM32 motor speed (typed in ESP32 serial monitor) ---- */
 void Test_ESP32_Motor_Init(void);
 void Test_ESP32_Motor_Run(void);
+
+/* ---- ULTRASONIC SENSOR + MOTOR ---- */
+void Test_Ultrasonic_Motor_Init(void);
+void Test_Ultrasonic_Motor_Run(void);
