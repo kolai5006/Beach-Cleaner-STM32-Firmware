@@ -34,11 +34,12 @@
 #include "motordrivers.h"
 #include "hcsr04.h"
 #include "esp32comm.h"
+#include "drivetrain.h"
 
 /* Peripheral handles created by CubeMX in main.c */
 extern I2C_HandleTypeDef hi2c1;
 extern TIM_HandleTypeDef htim1;
-extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
 extern UART_HandleTypeDef huart2;
 
@@ -71,7 +72,7 @@ static Encoder_Driver test_encoder;
 
 void Test_Motor_Init(void)
 {
-    init_default_motor(&test_motor, &htim2, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
+    init_default_motor(&test_motor, &htim3, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
     init_encoder(&test_encoder, &htim4, TIM_CHANNEL_1);
 }
 
@@ -343,7 +344,7 @@ volatile uint8_t test_esp32_failsafe = 1;  // 1 = stopped, no fresh commands
 
 void Test_ESP32_Motor_Init(void)
 {
-    init_default_motor(&test_motor, &htim2, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
+    init_default_motor(&test_motor, &htim3, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
     init_encoder(&test_encoder, &htim4, TIM_CHANNEL_1);
     drive_motor(&test_motor, 0.0f, 0U);
 
@@ -413,5 +414,201 @@ void Test_ESP32_Motor_Run(void)
                speed, (int)test_motor_rpm,
                test_esp32_failsafe ? "FAILSAFE" : "running ",
                stats->good, stats->bad_crc, stats->junk);
+    }
+}
+
+/* =====================================================================
+ * DRIVETRAIN TEST (two motors, differential drive)
+ *
+ *  Pins (confirmed against stm32f4xx_hal_msp.c):
+ *
+ *         LEFT  wheel          RIGHT wheel
+ *         PB4  PWM  TIM3_CH1   PA7  PWM  TIM3_CH2
+ *         PB10 direction       PA4  direction
+ *         PB6  enc   TIM4_CH1  PB7  enc   TIM4_CH2
+ *
+ *  Both PWMs share TIM3, so 50% means the same duty on each wheel.
+ *  Both encoders share TIM4 at prescaler 83 (1 us tick), which is what
+ *  ENCODER_HZ in motordrivers.c assumes.
+ *
+ *  Note the PWM is ACTIVE LOW - drive_motor() writes compare = period+1
+ *  for 0% (pin high, motor stopped) and 0 for 100% (pin low). That is
+ *  correct for the FIT0441; do not "fix" it.
+ *
+ *  RUN THESE IN ORDER. The first one tells you how to configure the
+ *  second, and running the second without it can send the robot
+ *  backwards across the room.
+ *
+ *  1. Test_Drivetrain_Wheels_Run()
+ *       Drives ONE wheel at a time, forwards, and prints which.
+ *       Put the robot ON BLOCKS so the wheels spin free.
+ *       Watch each wheel. If a wheel turns the WRONG way, change
+ *       that side's .fwd_level below from 0 to 1 (or 1 to 0),
+ *       rebuild, and run again until both turn forwards.
+ *
+ *  2. Test_Drivetrain_Run()
+ *       Cycles through every movement: forward, back, spin left,
+ *       spin right, arc left, arc right, with a stop between each.
+ *       Keep it on blocks the first time, then try the floor.
+ *
+ *  Serial monitor on the ST-LINK port, 115200. Each step prints when
+ *  it starts, plus wheel RPM once a second.
+ *  Watch: test_left_rpm, test_right_rpm, test_move
+ * ===================================================================== */
+
+extern TIM_HandleTypeDef htim3;   /* PWM, both wheels  */
+extern TIM_HandleTypeDef htim4;   /* encoders, both wheels */
+
+#define DRIVE_SPEED      30.0f   /* % for straight moves  */
+#define TURN_SPEED       30.0f   /* % for spins           */
+#define ARC_SPEED  15.0f   /* % inner wheel on arcs */
+
+static Drivetrain wheels;
+
+volatile float   test_left_rpm  = 0.0f;
+volatile float   test_right_rpm = 0.0f;
+volatile uint8_t test_move      = 0;
+
+/* Set .fwd_level from what you see in Test_Drivetrain_Wheels_Run.
+ * The two motors are mirrored, so these are usually NOT the same. */
+static const WheelConfig left_wheel = {
+    .pwm_tim     = &htim3,
+    .pwm_channel = TIM_CHANNEL_1,
+    .dir_port    = GPIOB,
+    .dir_pin     = GPIO_PIN_10,
+    .fwd_level   = 0U,
+    .enc_tim     = &htim4,
+    .enc_channel = TIM_CHANNEL_1,
+};
+
+static const WheelConfig right_wheel = {
+    .pwm_tim     = &htim3,
+    .pwm_channel = TIM_CHANNEL_2,
+    .dir_port    = GPIOA,
+    .dir_pin     = GPIO_PIN_4,
+    .fwd_level   = 1U,
+    .enc_tim     = &htim4,
+    .enc_channel = TIM_CHANNEL_2,
+};
+
+void Test_Drivetrain_Init(void)
+{
+    if (drivetrain_init(&wheels, &left_wheel, &right_wheel) != HAL_OK) {
+        printf("[Warning] an encoder failed to start; motors still usable\r\n");
+    }
+    drivetrain_stop(&wheels);
+
+    printf("\r\n========================================\r\n");
+    printf("   Drivetrain test - PUT IT ON BLOCKS\r\n");
+    printf("   PWM TIM3 CH1/CH2, encoders TIM4 CH1/CH2\r\n");
+    printf("   dir pins PB10 (left) and PA4 (right)\r\n");
+    printf("========================================\r\n");
+}
+
+/* ---------------------------------------------------------------------
+ * 1. WHICH WAY DOES EACH WHEEL TURN?
+ *
+ *    left forward 3 s, stop 2 s, right forward 3 s, stop 2 s, repeat.
+ *    Both should turn so the robot WOULD move forwards.
+ * ------------------------------------------------------------------ */
+void Test_Drivetrain_Wheels_Run(void)
+{
+    static const char *names[4] = {
+        "LEFT wheel forward  - which way does it turn?",
+        "stop",
+        "RIGHT wheel forward - which way does it turn?",
+        "stop",
+    };
+    static const float    lefts[4]     = { DRIVE_SPEED, 0.0f, 0.0f,          0.0f };
+    static const float    rights[4]    = { 0.0f,          0.0f, DRIVE_SPEED, 0.0f };
+    static const uint32_t durations[4] = { 3000U,         2000U, 3000U,        2000U };
+
+    static uint32_t phase_start = 0;
+    static uint8_t  phase   = 0;
+    static uint8_t  started = 0;
+
+    if (!started) {
+        started = 1;
+        phase = 0;
+        phase_start = HAL_GetTick();
+        drivetrain_set(&wheels, lefts[0], rights[0]);
+        printf("[WHEELS] %s\r\n", names[0]);
+    }
+
+    if ((HAL_GetTick() - phase_start) >= durations[phase]) {
+        phase = (uint8_t)((phase + 1U) % 4U);
+        phase_start = HAL_GetTick();
+        drivetrain_set(&wheels, lefts[phase], rights[phase]);
+        printf("[WHEELS] %s\r\n", names[phase]);
+    }
+
+    test_left_rpm  = drivetrain_rpm(&wheels, LEFT);
+    test_right_rpm = drivetrain_rpm(&wheels, RIGHT);
+}
+
+/* ---------------------------------------------------------------------
+ * 2. CYCLE THROUGH EVERY MOVEMENT
+ * ------------------------------------------------------------------ */
+typedef struct {
+    const char *name;
+    float       left;
+    float       right;
+    uint32_t    ms;
+} Move;
+
+static const Move moves[] = {
+    { "stop",        0.0f,              0.0f,              1500U },
+    { "forward",     DRIVE_SPEED,     DRIVE_SPEED,     2000U },
+    { "stop",        0.0f,              0.0f,              1500U },
+    { "backward",   -DRIVE_SPEED,    -DRIVE_SPEED,     2000U },
+    { "stop",        0.0f,              0.0f,              1500U },
+    { "spin left",  -TURN_SPEED,      TURN_SPEED,      1500U },
+    { "stop",        0.0f,              0.0f,              1500U },
+    { "spin right",  TURN_SPEED,     -TURN_SPEED,      1500U },
+    { "stop",        0.0f,              0.0f,              1500U },
+    { "arc left",    ARC_SPEED, DRIVE_SPEED,     2000U },
+    { "stop",        0.0f,              0.0f,              1500U },
+    { "arc right",   DRIVE_SPEED,     ARC_SPEED, 2000U },
+    { "stop",        0.0f,              0.0f,              2500U },
+};
+
+#define MOVE_COUNT  (sizeof(moves) / sizeof(moves[0]))
+
+void Test_Drivetrain_Run(void)
+{
+    static uint32_t step_start  = 0;
+    static uint32_t last_status = 0;
+    static uint8_t  step        = 0;
+    static uint8_t  started     = 0;
+
+    if (!started) {
+        started = 1;
+        step = 0;
+        step_start = HAL_GetTick();
+        drivetrain_set(&wheels, moves[0].left, moves[0].right);
+        printf("[DRIVE] %s  (L %+d%%  R %+d%%)\r\n",
+               moves[0].name,
+               (int)moves[0].left, (int)moves[0].right);
+    }
+
+    if ((HAL_GetTick() - step_start) >= moves[step].ms) {
+        step = (uint8_t)((step + 1U) % MOVE_COUNT);
+        step_start = HAL_GetTick();
+        test_move = step;
+
+        drivetrain_set(&wheels, moves[step].left, moves[step].right);
+        printf("[DRIVE] %s  (L %+d%%  R %+d%%)\r\n",
+               moves[step].name,
+               (int)moves[step].left, (int)moves[step].right);
+    }
+
+    test_left_rpm  = drivetrain_rpm(&wheels, LEFT);
+    test_right_rpm = drivetrain_rpm(&wheels, RIGHT);
+
+    if ((HAL_GetTick() - last_status) >= 1000U) {
+        last_status = HAL_GetTick();
+        /* nano printf has no %f, so RPM prints as whole numbers */
+        printf("        rpm  L=%4d  R=%4d\r\n",
+               (int)test_left_rpm, (int)test_right_rpm);
     }
 }

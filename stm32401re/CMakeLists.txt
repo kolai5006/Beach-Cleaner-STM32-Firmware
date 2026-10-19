@@ -34,6 +34,7 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
     Core/Src/motordrivers.c
+    Core/Src/drivetrain.c
     Core/Src/bno055.c
     Core/Src/hcsr04.c
     Core/Src/mcp9808.c
