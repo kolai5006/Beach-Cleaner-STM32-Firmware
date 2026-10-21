@@ -29,7 +29,8 @@ extern volatile float test_ultrasonic_distance_cm;  // Test_Ultrasonic
 extern volatile HAL_StatusTypeDef test_ultrasonic_status;
 extern MCP_9808 test_temp_sensor;                   // Test_TempSensor
 extern volatile uint8_t test_temp_status;
-extern BNO055_Axis_Vec_t test_gyro_data;            // Test_IMU
+extern BNO055_Axis_Vec_t test_gyro_data;            // Test_IMU (rate, deg/s)
+extern BNO055_Axis_Vec_t test_euler_data;           // Test_IMU (angle, degrees)
 extern volatile BNO055_ERROR test_imu_status;
 extern volatile uint32_t test_esp32_good;           // Test_ESP32
 extern volatile uint32_t test_esp32_bad_crc;

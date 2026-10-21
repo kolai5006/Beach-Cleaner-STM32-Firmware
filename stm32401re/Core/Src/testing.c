@@ -11,9 +11,12 @@
  *  ---------------------------------------------------------------
  *  Test              Signal          Pin    Peripheral
  *  ---------------------------------------------------------------
- *  Test_Motor        PWM             PA0    TIM2_CH1 (~20 kHz)
- *                    Direction       PB10   GPIO output
- *                    Encoder (FG)    PB6    TIM4_CH1 input capture
+ *  Motor pins        Signal          LEFT wheel      RIGHT wheel
+ *                    PWM             PB4  TIM3_CH1   PA7  TIM3_CH2
+ *                    Direction       PB10 GPIO out   PA4  GPIO out
+ *                    Encoder (FG)    PB6  TIM4_CH1   PB7  TIM4_CH2
+ *  ---------------------------------------------------------------
+ *  Test_Motor        one motor       LEFT or RIGHT, see TEST_MOTOR_SIDE
  *  Test_Ultrasonic   Trigger         PB5    GPIO output
  *                    Echo            PA8    TIM1 (1 us tick)
  *  Test_TempSensor   SCL / SDA       PB8 / PB9   I2C1 (addr 0x18)
@@ -22,9 +25,11 @@
  *  Test_LED          Toggle          PA5    GPIO output
  *  Test_ESP32        TX / RX         PA9 / PA10  USART1 -> ESP32 (D8 / D2)
  *  Test_ESP32_Motor  ESP32 + motor   Test_ESP32 pins + Test_Motor pins
+ *  Test_Drivetrain   both motors     LEFT + RIGHT wheel pins
+ *  Test_Ultrasonic_Motor             Test_Ultrasonic pins + Test_Motor pins
  *  ---------------------------------------------------------------
- *  Spare, configured but unused: PB4 (TIM3_CH1 capture, 2nd encoder),
- *  PA4 / PA5 (GPIO out), PA1 (GPIO in).
+ *  TIM2 is no longer used (motors moved to TIM3 to free up pins).
+ *  Spare, configured but unused: PA1 (GPIO in), PA0 (leftover TIM2 AF).
  */
 
 #include "testing.h"
@@ -56,24 +61,55 @@ volatile BNO055_ERROR test_imu_status = BNO055_NOT_DETECTED;
 /* =====================================================================
  * MOTOR + ENCODER TEST (FIT0441 brushless motor)
  *
- *  Pins:  PA0  -> motor PWM   (TIM2_CH1)
- *         PB10 -> motor direction
- *         PB6  <- encoder FG  (TIM4_CH1 input capture)
+ *  Pins (set by TEST_MOTOR_SIDE):
+ *                 LEFT (default)       RIGHT
+ *    PWM          PB4  TIM3_CH1        PA7  TIM3_CH2
+ *    direction    PB10                 PA4
+ *    encoder FG   PB6  TIM4_CH1        PB7  TIM4_CH2
  *
  *  Spins the motor at TEST_MOTOR_POWER % in TEST_MOTOR_DIRECTION and
  *  reads speed from the encoder.
  *  Watch: test_motor_rpm
+ *
+ *  TEST_MOTOR_SIDE also picks the motor for Test_ESP32_Motor and
+ *  Test_Ultrasonic_Motor. The motors are mirrored, so direction 0 turns
+ *  the left and right wheels opposite ways.
  * ===================================================================== */
+#define TEST_MOTOR_LEFT       0
+#define TEST_MOTOR_RIGHT      1
+#define TEST_MOTOR_SIDE       TEST_MOTOR_LEFT  // TEST_MOTOR_LEFT or TEST_MOTOR_RIGHT
+
 #define TEST_MOTOR_POWER      50.0f  // 0 (off) to 100 (full)
 #define TEST_MOTOR_DIRECTION  0U     // 0 or 1
+
+#if TEST_MOTOR_SIDE == TEST_MOTOR_LEFT
+#define TEST_MOTOR_PWM_CH     TIM_CHANNEL_1  // PB4
+#define TEST_MOTOR_DIR_PORT   GPIOB
+#define TEST_MOTOR_DIR_PIN    GPIO_PIN_10
+#define TEST_MOTOR_ENC_CH     TIM_CHANNEL_1  // PB6
+#elif TEST_MOTOR_SIDE == TEST_MOTOR_RIGHT
+#define TEST_MOTOR_PWM_CH     TIM_CHANNEL_2  // PA7
+#define TEST_MOTOR_DIR_PORT   GPIOA
+#define TEST_MOTOR_DIR_PIN    GPIO_PIN_4
+#define TEST_MOTOR_ENC_CH     TIM_CHANNEL_2  // PB7
+#else
+#error "TEST_MOTOR_SIDE must be TEST_MOTOR_LEFT or TEST_MOTOR_RIGHT"
+#endif
 
 static Motor test_motor;
 static Encoder_Driver test_encoder;
 
+/* Shared by every single-motor test. PWM is TIM3, encoder is TIM4. */
+static void test_motor_setup(void)
+{
+    init_default_motor(&test_motor, &htim3, TEST_MOTOR_PWM_CH,
+                       TEST_MOTOR_DIR_PORT, TEST_MOTOR_DIR_PIN);
+    init_encoder(&test_encoder, &htim4, TEST_MOTOR_ENC_CH);
+}
+
 void Test_Motor_Init(void)
 {
-    init_default_motor(&test_motor, &htim3, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
-    init_encoder(&test_encoder, &htim4, TIM_CHANNEL_1);
+    test_motor_setup();
 }
 
 void Test_Motor_Run(void)
@@ -144,10 +180,26 @@ void Test_TempSensor_Run(void)
  *
  *  Pins:  PB8 -> SCL, PB9 <-> SDA  (I2C1, shared with MCP9808)
  *
- *  Puts the IMU in IMU (accel + gyro fusion) mode and reads the gyro.
+ *  Puts the IMU in NDOF (accel + gyro + mag fusion) mode and reads both
+ *  the gyro and the fused orientation.
  *  Init takes ~1.5 s because of required BNO055 reset delays.
- *  Watch: test_gyro_data.x / .y / .z, test_imu_status (0 = OK)
+ *
+ *  The gyro is a RATE sensor (deg/s), not an angle. It reads non-zero only
+ *  while the board is rotating and drops back to ~0 the moment it stops,
+ *  whatever way it is facing. For "which way is it pointing", watch
+ *  test_euler_data instead - that holds its value while the board is still.
+ *
+ *  NDOF is used because every BNO055_Get_* in bno055.c forces NDOF anyway;
+ *  setting a different mode here just gets silently overridden on the
+ *  first read. Heading (.x) needs the magnetometer calibrated: move the
+ *  board in a slow figure-8 for a few seconds after power-up.
+ *
+ *  Watch: test_gyro_data.x / .y / .z    rotation rate, deg/s
+ *         test_euler_data.x / .y / .z   heading / roll / pitch, degrees
+ *         test_imu_status (0 = OK)
  * ===================================================================== */
+BNO055_Axis_Vec_t test_euler_data;
+
 void Test_IMU_Init(void)
 {
     BNO055_I2C_Mount(&hi2c1);
@@ -158,13 +210,16 @@ void Test_IMU_Init(void)
         return;
     }
 
-    BNO055_Set_OP_Mode(IMU);
+    BNO055_Set_OP_Mode(NDOF);
     printf("[OK] BNO055 initialized\r\n");
 }
 
 void Test_IMU_Run(void)
 {
     test_imu_status = BNO055_Get_Gyro(&test_gyro_data);
+    if (test_imu_status == BNO055_SUCCESS) {
+        BNO055_Get_Euler_Vec(&test_euler_data);
+    }
     HAL_Delay(10U);
 }
 
@@ -318,9 +373,8 @@ void Test_ESP32_Run(void)
  *  ESP32 sketch: uart_commtest/motorcmd/motorcmd.ino
  *
  *  Pins:  same ESP32 wiring as the ping test (USART1, PA9 / PA10)
- *         PA0  -> motor PWM   (TIM2_CH1)
- *         PB10 -> motor direction
- *         PB6  <- encoder FG  (TIM4_CH1)
+ *         motor + encoder: same as Test_Motor (TEST_MOTOR_SIDE,
+ *         left wheel by default: PB4 TIM3_CH1, PB10 dir, PB6 TIM4_CH1)
  *
  *  The ESP32 resends the last speed as a MOTOR packet 10 times a second:
  *      AA 55 02 01 <speed> <crc>     speed: int8, -100..100
@@ -344,8 +398,7 @@ volatile uint8_t test_esp32_failsafe = 1;  // 1 = stopped, no fresh commands
 
 void Test_ESP32_Motor_Init(void)
 {
-    init_default_motor(&test_motor, &htim3, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
-    init_encoder(&test_encoder, &htim4, TIM_CHANNEL_1);
+    test_motor_setup();
     drive_motor(&test_motor, 0.0f, 0U);
 
     printf("\r\n========================================\r\n");
@@ -611,25 +664,24 @@ void Test_Drivetrain_Run(void)
         printf("        rpm  L=%4d  R=%4d\r\n",
                (int)test_left_rpm, (int)test_right_rpm);
     }
+}
 
 /* =====================================================================
  * ULTRASONIC SENSOR + MOTOR TEST
  *
  *  Pins:  PB5 -> TRIG
  *         PA8 <- ECHO  (through a voltage divider, 5 V -> 3.3 V)
- *         PA0  -> motor PWM   (TIM2_CH1)
- *         PB10 -> motor direction
- *         PB6  <- encoder FG  (TIM4_CH1)
+ *         motor + encoder: same as Test_Motor (TEST_MOTOR_SIDE,
+ *         left wheel by default: PB4 TIM3_CH1, PB10 dir, PB6 TIM4_CH1)
  *
  *  The Ultrasonic sensor pings every 60 ms. If the distance is less than
  *  20 cm, the motor stops. Otherwise, the motor runs at 75% power in direction 0.
-    *  Watch: test_ultrasonic_distance_cm, test_motor_rpm
+ *  Watch: test_ultrasonic_distance_cm, test_motor_rpm
  * ===================================================================== */
 
 void Test_Ultrasonic_Motor_Init(void)
 {
-    init_default_motor(&test_motor, &htim2, TIM_CHANNEL_1, GPIOB, GPIO_PIN_10);
-    init_encoder(&test_encoder, &htim4, TIM_CHANNEL_1);
+    test_motor_setup();
     drive_motor(&test_motor, 0.0f, 0U);
 
     if (HCSR04_Init(&test_ultrasonic, GPIOB, GPIO_PIN_5,
