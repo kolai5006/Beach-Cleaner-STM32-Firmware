@@ -2,7 +2,7 @@
  * testing.h
  *
  *  Created on: Oct 17, 2026
- *      Author: nicholai
+ *      Author: nicholai and ayleen
  *
  *  Bench tests for each peripheral, used to keep main.c clean.
  *  Not used in the final product.
@@ -36,6 +36,9 @@ extern volatile uint32_t test_esp32_bad_crc;
 extern volatile uint32_t test_esp32_lost;
 extern volatile int8_t test_esp32_motor_speed;      // Test_ESP32_Motor
 extern volatile uint8_t test_esp32_failsafe;
+extern volatile float   test_left_rpm;              // Test_Drivetrain
+extern volatile float   test_right_rpm;
+extern volatile uint8_t test_move;
 
 /* ---- Motor + encoder (FIT0441) ---- */
 void Test_Motor_Init(void);
@@ -68,6 +71,11 @@ void Test_ESP32_Run(void);
 /* ---- ESP32 -> STM32 motor speed (typed in ESP32 serial monitor) ---- */
 void Test_ESP32_Motor_Init(void);
 void Test_ESP32_Motor_Run(void);
+
+/* ---- Two-motor drivetrain ---- */
+void Test_Drivetrain_Init(void);
+void Test_Drivetrain_Wheels_Run(void);
+void Test_Drivetrain_Run(void);
 
 /* ---- ULTRASONIC SENSOR + MOTOR ---- */
 void Test_Ultrasonic_Motor_Init(void);
