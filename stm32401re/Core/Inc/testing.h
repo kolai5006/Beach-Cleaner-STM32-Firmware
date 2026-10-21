@@ -76,3 +76,7 @@ void Test_ESP32_Motor_Run(void);
 void Test_Drivetrain_Init(void);
 void Test_Drivetrain_Wheels_Run(void);
 void Test_Drivetrain_Run(void);
+
+/* ---- ULTRASONIC SENSOR + MOTOR ---- */
+void Test_Ultrasonic_Motor_Init(void);
+void Test_Ultrasonic_Motor_Run(void);
